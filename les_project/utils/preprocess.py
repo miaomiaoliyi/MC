@@ -92,9 +92,9 @@ def find_fake_answer(sample):
 def clean_data(sample):
     # 文章内容和标题分段->分词：将标题插入到分段后的首位置
     sample['segmented_article_title'] = \
-        list(jieba.cut(''.join(re.split(r'\u3000+|\s+', sample['article_title'].strip()))))
+        list(jieba.cut(''.join(re.split(r'\u3000+|\s+|\t+', sample['article_title'].strip()))))
 
-    sample_splited_para = re.split(r'\u3000+|\s{4,10}', sample['article_content'].strip())
+    sample_splited_para = re.split(r'\u3000+|\s+|\t+', sample['article_content'].strip())
     if len(sample_splited_para) == 1 and len(sample_splited_para[0]) > 200:
         sample_splited_para = re.split(r'\。', sample['article_content'].strip())
     sample_splited_list = []
@@ -107,9 +107,9 @@ def clean_data(sample):
     # 问题和答案分词处理
     for i, question in enumerate(sample['questions']):
         sample['questions'][i]['segmented_question'] = \
-            list(jieba.cut(''.join(question['question'].strip().split('\u3000'))))
+            list(jieba.cut(''.join(question['question'].strip().split('\u3000+|\s+|\t+'))))
         sample['questions'][i]['segmented_answer'] = \
-            list(jieba.cut(''.join(question['answer'].strip().split('\u3000'))))
+            list(jieba.cut(''.join(question['answer'].strip().split('\u3000+|\s+|\t+'))))
     return sample
 
 
@@ -118,10 +118,10 @@ def save(data, i):
         json.dump(data, f)
 
 
-def run_preprocess(file_path, start=0):
+def run_preprocess(file_path, start=0, end=-1):
     data_set = load_data_set(file_path)
     data_preprocessed = []
-    for i, sample in enumerate(data_set):
+    for i, sample in enumerate(data_set[start: end+1]):
         if i % 100 == 0 and i != 0:
             print(i + start)
             save(data_preprocessed, (i + start) / 100)
@@ -132,4 +132,4 @@ def run_preprocess(file_path, start=0):
 
 
 if __name__ == '__main__':
-    run_preprocess('../../data/question.json', start=2800)
+    run_preprocess('../../data/question.json', start=6000, end=8000)
