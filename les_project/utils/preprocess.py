@@ -121,7 +121,7 @@ def save(data, i):
 def run_preprocess(file_path, start=0, end=-1):
     data_set = load_data_set(file_path)
     data_preprocessed = []
-    for i, sample in enumerate(data_set[start: end+1]):
+    for i, sample in enumerate(data_set[start: end + 1]):
         if i % 100 == 0 and i != 0:
             print(i + start)
             save(data_preprocessed, (i + start) / 100)
@@ -131,5 +131,15 @@ def run_preprocess(file_path, start=0, end=-1):
         data_preprocessed.append(sample_preprocessed)
 
 
+def store_prerpocess_data():
+    preprocessed_data = []
+    for i in range(1, 201):
+        with open('./data/preprocessed_%d.json' % i, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+        preprocessed_data.extend(d)
+    with open('./data/preprocessed.json', 'w', encoding='utf-8') as f:
+        json.dump(preprocessed_data, f)
+
+
 if __name__ == '__main__':
-    run_preprocess('../../data/question.json', start=6000, end=8000)
+    run_preprocess('../../data/question.json', start=19900, end=20000)
