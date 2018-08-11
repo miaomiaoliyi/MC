@@ -1,8 +1,10 @@
+import os
 import re
 import json
 from collections import Counter
 
 import jieba
+import numpy as np
 from tqdm import tqdm
 
 
@@ -113,12 +115,11 @@ def clean_data(sample):
     return sample
 
 
-def save(data, i):
-    with open('../../data/preprocessed_%d.json' % i, 'w', encoding='utf-8') as f:
-        json.dump(data, f)
-
-
 def run_preprocess(file_path, start=0, end=-1):
+    def save(data, i):
+        with open('../../data/preprocessed_%d.json' % i, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+
     data_set = load_data_set(file_path)
     data_preprocessed = []
     for i, sample in enumerate(data_set[start: end + 1]):
@@ -141,5 +142,54 @@ def store_prerpocess_data():
         json.dump(preprocessed_data, f)
 
 
+def save_data(data, path):
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f)
+
+
+def qc(data_preprocessed):
+    """
+    原始数据集中有重复的文章，根据标题去重
+    :return:
+    """
+    title_set = set()
+    data_qc = []
+    for sample in data_preprocessed:
+        title = sample['article_title']
+        if title in title_set:
+            continue
+        else:
+            title_set.add(title)
+            data_qc.append(sample)
+    save_data(data_qc, os.path.join('F:\\jupyter_file\\MC\\data', 'preprocessed.json'))
+
+
+def train_test_split(data_path, train_percent=0.9):
+    """
+    切分训练集，测试集
+    :param data_path:
+    :param train_percent:
+    :return:
+    """
+    with open(data_path, 'r', encoding='utf-8') as f:
+        dataset = json.load(f)
+
+    index = np.arange(len(dataset))
+    np.random.shuffle(index)
+
+    train_size = int(len(dataset) * train_percent)
+    train_index = index[:train_size]
+    test_index = index[train_size:]
+    train_set, test_set = [], []
+    for index in train_index:
+        train_set.append(dataset[index])
+    for index in test_index:
+        test_set.append(dataset[index])
+
+    save_data(train_set, os.path.join('F:\\jupyter_file\\MC\\data', 'trainset.json'))
+    save_data(test_set, os.path.join('F:\\jupyter_file\\MC\\data', 'testset.json'))
+
+
 if __name__ == '__main__':
-    run_preprocess('../../data/question.json', start=19900, end=20000)
+    # run_preprocess('../../data/question.json', start=19900, end=20000)
+    train_test_split(os.path.join('F:\\jupyter_file\\MC\\data', 'preprocessed_qc.json'))

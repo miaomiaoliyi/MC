@@ -1,5 +1,7 @@
 from collections import defaultdict
 
+import numpy as np
+
 
 class Vocab(object):
 
@@ -21,6 +23,8 @@ class Vocab(object):
         for token in self.initial_tokens:
             self.add(token)
 
+        if filename:
+            self.load_from_file(filename)
 
     def add(self, token, cnt=True):
         token = token.lower() if self.lower else token
@@ -35,4 +39,13 @@ class Vocab(object):
             self.token_cnt[token] += 1
 
         return idx
-    
+
+    def randomly_init_embeddings(self, embed_dim):
+        self.embed_dim = embed_dim
+        self.embeddings = np.random.rand(len(self.token2id), embed_dim)
+
+        for token in [self.pad_token, self.unk_token]:
+            self.embeddings[self.token2id[token]] = np.zeros([embed_dim])
+
+    def load_from_file(self, filename):
+        pass
