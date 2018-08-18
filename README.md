@@ -1,7 +1,7 @@
 # MC
 
 8/1
-- explore trainset
+- explore trainset.
 
 8/11
-- finish dataset module
+- finish dataset module.
