@@ -42,9 +42,34 @@ class LESDataset(object):
                 for word in sample['segmented_article_content'][question['most_related_para']]:
                     yield word
 
+    def train_dev_split(self, train_percent=0.8, shuffle=True):
+        data_size = len(self.train_set)
+        indices = np.arange(data_size)
+
+        if shuffle:
+            np.random.shuffle(indices)
+
+        train_size = int(data_size * train_percent)
+
+        train_indices = indices[:train_size]
+        dev_indices = indices[train_size:]
+
+        train_set_temp, dev_set_temp = [], []
+        for i in train_indices:
+            train_set_temp.append(self.train_set[i])
+        for i in dev_indices:
+            dev_set_temp.append(self.train_set[i])
+
+        self.train_set = train_set_temp
+        self.dev_set = dev_set_temp
+
     def gen_mini_batches(self, set_name, batch_size, pad_id=0, shuffle=True):
         if set_name == 'train':
             data = self.train_set
+        if set_name == 'dev':
+            data = self.dev_set
+        if set_name == 'test':
+            data = self.test
 
         data_size = len(data)
         indices = np.arange(data_size)

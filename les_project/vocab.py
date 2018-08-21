@@ -49,3 +49,20 @@ class Vocab(object):
 
     def load_from_file(self, filename):
         pass
+
+    def get_id(self, token):
+        token = token.lower if self.lower else token
+
+        try:
+            return self.token2id[token]
+        except KeyError:
+            return self.token2id[self.unk_token]
+
+    def get_token(self, id):
+        try:
+            return self.id2token[id]
+        except:
+            return self.unk_token
+
+    def size(self):
+        return len(self.token2id)
