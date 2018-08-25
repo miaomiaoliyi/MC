@@ -1,6 +1,7 @@
 import os
 import pickle
 import argparse
+import logging
 
 from dataset import LESDataset
 from vocab import Vocab
@@ -55,7 +56,7 @@ def parse_args():
 
     path_settings = parser.add_argument_group('path settings')
     path_settings.add_argument('--train_files', nargs='+',
-                               default=['../data/demo/trainset/search.train.json'],
+                               default='C:\\Users\\lisc1\\PycharmProjects\\MC\\data\\trainset.json',
                                help='list of files that contain the preprocessed train data')
     path_settings.add_argument('--dev_files', nargs='+',
                                default=['../data/demo/devset/search.dev.json'],
@@ -65,13 +66,13 @@ def parse_args():
                                help='list of files that contain the preprocessed test data')
     path_settings.add_argument('--brc_dir', default='../data/baidu',
                                help='the dir with preprocessed baidu reading comprehension data')
-    path_settings.add_argument('--vocab_dir', default='../data/vocab/',
+    path_settings.add_argument('--vocab_dir', default='C:\\Users\\lisc1\\PycharmProjects\\MC\\data\\vocab',
                                help='the dir to save vocabulary')
-    path_settings.add_argument('--model_dir', default='../data/models/',
+    path_settings.add_argument('--model_dir', default='C:\\Users\\lisc1\\PycharmProjects\\MC\\data\\models',
                                help='the dir to store models')
-    path_settings.add_argument('--result_dir', default='../data/results/',
+    path_settings.add_argument('--result_dir', default='C:\\Users\\lisc1\\PycharmProjects\\MC\\data\\results',
                                help='the dir to output the results')
-    path_settings.add_argument('--summary_dir', default='../data/summary/',
+    path_settings.add_argument('--summary_dir', default='C:\\Users\\lisc1\\PycharmProjects\\MC\\data\\summary',
                                help='the dir to write tensorboard summary')
     path_settings.add_argument('--log_path',
                                help='path of the log file. If not set, logs are printed to console')
@@ -79,31 +80,59 @@ def parse_args():
 
 
 def prepare(args):
-    les_data = LESDataset(max_p_len=300, max_q_len=60, train_file='..//data//preprocessed.json')
+    logger = logging.getLogger("brc")
+    logger.info('Checking the data files...')
+
+    logger.info('Preparing the directories...')
+    for dir_path in [args.vocab_dir, args.model_dir, args.result_dir, args.summary_dir]:
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+
+    les_data = LESDataset(max_p_len=300, max_q_len=60, train_file=args.train_files)
 
     vocab =Vocab(lower=True)
     for word in les_data.word_iter('train'):
         vocab.add(word)
-
-    with open('..//data//vocab.data', 'wb') as f:
+    vocab.randomly_init_embeddings(args.embed_size)
+    with open(os.path.join(args.vocab_dir, 'vocab.data'), 'wb') as f:
         pickle.dump(vocab, f)
+
+    logger.info('Done with preparing!')
 
 
 def train(args):
     with open(os.path.join(args.vocab_dir, 'vocab.data'), 'rb') as f:
         vocab = pickle.load(f)
-
-    les_data = LESDataset(args.max_p_len, args.max_q_len, vocab, args.train_files)
+    print(vocab.size(), vocab.embed_dim)
+    les_data = LESDataset(args.max_p_len, args.max_q_len, args.train_files)
 
     model = Model(vocab, args)
 
     model.train(les_data, args.epochs, args.batch_size, save_dir=args.model_dir,
                 save_prefix=args.algo,
-                dropout_keep_prob=args.dropout_keep_prob)
+                dropout_keep_prob=args.dropout_keep_prob,
+                evaluate=False)
 
 
 def run():
     args = parse_args()
+
+    logger = logging.getLogger("les")
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    if args.log_path:
+        file_handler = logging.FileHandler(args.log_path)
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    else:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+
+    logger.info('Running with args : {}'.format(args))
 
     if args.prepare:
         prepare(args)
@@ -112,4 +141,4 @@ def run():
 
 
 if __name__ == '__main__':
-    prepare()
+    run()

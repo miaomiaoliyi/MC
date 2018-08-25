@@ -3,10 +3,9 @@ import numpy as np
 
 
 class LESDataset(object):
-    def __init__(self, max_p_len, max_q_len, vocab, train_file=None, test_file=None):
+    def __init__(self, max_p_len, max_q_len, train_file=None, test_file=None):
         self.max_p_len = max_p_len
         self.max_q_len = max_q_len
-        self.vocab = vocab
         if train_file:
             self.train_set = self._load_dataset(train_file)
         if test_file:
@@ -36,11 +35,11 @@ class LESDataset(object):
             data_set = self.train_set
 
         for sample in data_set:
-            for question in sample['questions']:
-                for word in question['segmented_question']:
-                    yield word
-                for word in sample['segmented_article_content'][question['most_related_para']]:
-                    yield word
+            # for question in sample['questions']:
+            for word in sample['passage']:
+                yield word
+            for word in sample['question']:
+                yield word
 
     def train_dev_split(self, train_percent=0.8, shuffle=True):
         data_size = len(self.train_set)
@@ -63,7 +62,9 @@ class LESDataset(object):
         self.train_set = train_set_temp
         self.dev_set = dev_set_temp
 
-    def gen_mini_batches(self, set_name, batch_size, pad_id=0, shuffle=True):
+    def gen_mini_batches(self, set_name, batch_size, vocab, pad_id=0, shuffle=True):
+        self.vocab = vocab
+
         if set_name == 'train':
             data = self.train_set
         if set_name == 'dev':

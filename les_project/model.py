@@ -4,12 +4,12 @@ import logging
 import json
 import numpy as np
 import tensorflow as tf
-from .utils import compute_bleu_rouge
-from .utils import normalize
-from .layers.basic_rnn import rnn
-from .layers.match_layer import MatchLSTMLayer
-from .layers.match_layer import AttentionFlowMatchLayer
-from .layers.pointer_net import PointerNetDecoder
+from utils.api import compute_bleu_rouge
+from utils.api import normalize
+from layers.basic_rnn import rnn
+from layers.match_layer import MatchLSTMLayer
+from layers.match_layer import AttentionFlowMatchLayer
+from layers.pointer_net import PointerNetDecoder
 
 
 class Model(object):
@@ -209,8 +209,8 @@ class Model(object):
                          self.end_label: batch['end_id'],
                          self.dropout_keep_prob: dropout_keep_prob}
             _, loss = self.sess.run([self.train_op, self.loss], feed_dict)
-            total_loss += loss * len(batch['raw_data'])
-            total_num += len(batch['raw_data'])
+            total_loss += loss * len(batch['passage_token_ids'])
+            total_num += len(batch['passage_token_ids'])
             n_batch_loss += loss
             if log_every_n_batch > 0 and bitx % log_every_n_batch == 0:
                 self.logger.info('Average loss from batch {} to {} is {}'.format(
@@ -236,14 +236,14 @@ class Model(object):
         for epoch in range(1, epochs + 1):
             data.train_dev_split(train_percent=0.8)
             self.logger.info('Training the model for epoch {}'.format(epoch))
-            train_batches = data.gen_mini_batches('train', batch_size)
+            train_batches = data.gen_mini_batches('train', batch_size, self.vocab)
             train_loss = self._train_epoch(train_batches, dropout_keep_prob)
             self.logger.info('Average train loss for epoch {} is {}'.format(epoch, train_loss))
 
             if evaluate:
                 self.logger.info('Evaluating the model after epoch {}'.format(epoch))
                 if data.dev_set is not None:
-                    eval_batches = data.gen_mini_batches('dev', batch_size, pad_id, shuffle=False)
+                    eval_batches = data.gen_mini_batches('dev', batch_size, self.vocab, pad_id, shuffle=False)
                     eval_loss, bleu_rouge = self.evaluate(eval_batches)
                     self.logger.info('Dev eval loss {}'.format(eval_loss))
                     self.logger.info('Dev eval result: {}'.format(bleu_rouge))
@@ -297,10 +297,10 @@ class Model(object):
                                          'yesno_answers': []})
                 if 'answers' in sample:
                     ref_answers.append({'question_id': sample['question_id'],
-                                         'question_type': sample['question_type'],
-                                         'answers': sample['answers'],
-                                         'entity_answers': [[]],
-                                         'yesno_answers': []})
+                                        'question_type': sample['question_type'],
+                                        'answers': sample['answers'],
+                                        'entity_answers': [[]],
+                                        'yesno_answers': []})
 
         if result_dir is not None and result_prefix is not None:
             result_file = os.path.join(result_dir, result_prefix + '.json')
