@@ -82,7 +82,8 @@ class LESDataset(object):
             yield self._one_mini_batch(batch_data, pad_id)
 
     def _one_mini_batch(self, batch_data_raw, pad_id):
-        batch_data = {'question_token_ids': [],
+        batch_data = {'raw_data': batch_data_raw,
+                      'question_token_ids': [],
                       'question_length': [],
                       'passage_token_ids': [],
                       'passage_length': [],

@@ -282,19 +282,20 @@ class Model(object):
             total_loss += loss * len(batch['raw_data'])
             total_num += len(batch['raw_data'])
 
-            padded_p_len = len(batch['passage_token_ids'][0])
+            # padded_p_len = len(batch['passage_token_ids'][0])
             for sample, start_prob, end_prob in zip(batch['raw_data'], start_probs, end_probs):
 
-                best_answer = self.find_best_answer(sample, start_prob, end_prob, padded_p_len)
+                best_answer = self.find_best_answer(sample, start_prob, end_prob)
                 if save_full_info:
                     sample['pred_answers'] = [best_answer]
                     pred_answers.append(sample)
-                else:
-                    pred_answers.append({'question_id': sample['question_id'],
-                                         'question_type': sample['question_type'],
-                                         'answers': [best_answer],
-                                         'entity_answers': [[]],
-                                         'yesno_answers': []})
+                # else:
+                #     pred_answers.append({'question_id': sample['question_id'],
+                #                          'question_type': sample['question_type'],
+                #                          'answers': [best_answer],
+                #                          'entity_answers': [[]],
+                #                          'yesno_answers': []})
+                # 原始数据需要加入原始答案
                 if 'answers' in sample:
                     ref_answers.append({'question_id': sample['question_id'],
                                         'question_type': sample['question_type'],
@@ -324,6 +325,31 @@ class Model(object):
         else:
             bleu_rouge = None
         return ave_loss, bleu_rouge
+
+    def find_answer(self, sample, start_prob, end_prob):
+        """
+        Finds the best answer for a sample given start_prob and end_prob for each position.
+        This will call find_best_answer_for_passage because there are multiple passages in a sample
+        """
+        passage_len = min(self.max_p_len, len(sample['passage']))
+
+        best_start, best_end, max_prob = -1, -1, 0
+        for start_idx in range(passage_len):
+            for ans_len in range(self.max_a_len):
+                end_idx = start_idx + ans_len
+                if end_idx >= passage_len:
+                    continue
+                prob = start_prob[start_idx] * end_prob[end_idx]
+                if prob > max_prob:
+                    best_start = start_idx
+                    best_end = end_idx
+                    max_prob = prob
+        answer_span, score = (best_start, best_end), max_prob
+        if answer_span is None:
+            best_answer = ''
+        else:
+            best_answer = ''.join(sample['passage'][answer_span[0]:answer_span[1]+1])
+        return best_answer
 
     def find_best_answer(self, sample, start_prob, end_prob, padded_p_len):
         """
