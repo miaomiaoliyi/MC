@@ -9,7 +9,7 @@ class LESDataset(object):
         if train_file:
             self.train_set = self._load_dataset(train_file)
         if test_file:
-            self.test_set = self._load_dataset(test_file)
+            self.test_set = self._load_dataset(test_file, train=False)
 
     def _load_dataset(self, data_path, train=True):
         """
@@ -19,15 +19,28 @@ class LESDataset(object):
         """
         with open(data_path, 'r', encoding='utf-8') as f:
             data_set = json.load(f)
+
+        data = []
         if train:
-            data = []
             for sample in data_set:
                 for qa_pairs in sample['questions']:
                     if qa_pairs['answer_spans'][0] == -1:
                         continue
                     data.append({'question': qa_pairs['segmented_question'],
                                  'passage': sample['segmented_article_content'][qa_pairs['most_related_para']],
-                                 'answer_span': qa_pairs['answer_spans']})
+                                 'answer_span': qa_pairs['answer_spans'],
+                                 'answer': qa_pairs['answer'],
+                                 'article_id': sample['article_id'],
+                                 'questions_id': qa_pairs['questions_id'],
+                                 'question_type': qa_pairs['question_type']})
+        else:
+            for sample in data_set:
+                for qa_pairs in sample['questions']:
+                    data.append({'question': qa_pairs['segmented_question'],
+                                 'passage': sample['segmented_article_content'][qa_pairs['most_related_para']],
+                                 'article_id': sample['article_id'],
+                                 'questions_id': qa_pairs['questions_id'],
+                                 'question_type': qa_pairs['question_type']})
         return data
 
     def word_iter(self, set_name):
@@ -70,7 +83,7 @@ class LESDataset(object):
         if set_name == 'dev':
             data = self.dev_set
         if set_name == 'test':
-            data = self.test
+            data = self.test_set
 
         data_size = len(data)
         indices = np.arange(data_size)
@@ -94,8 +107,12 @@ class LESDataset(object):
             batch_data['question_length'].append(len(qa_pairs['question']))
             batch_data['passage_token_ids'].append(self.convert_to_ids(qa_pairs['passage']))
             batch_data['passage_length'].append(len(qa_pairs['passage']))
-            batch_data['start_id'].append(qa_pairs['answer_span'][0])
-            batch_data['end_id'].append(qa_pairs['answer_span'][1])
+            if 'answer_span' in qa_pairs:
+                batch_data['start_id'].append(qa_pairs['answer_span'][0])
+                batch_data['end_id'].append(qa_pairs['answer_span'][1])
+            else:
+                batch_data['start_id'].append(0)
+                batch_data['end_id'].append(0)
 
         batch_data = self._dynamic_padding(batch_data, pad_id)
         return batch_data
@@ -112,7 +129,7 @@ class LESDataset(object):
     def convert_to_ids(self, tokens):
         ids = []
         for token in tokens:
-            ids.append(self.vocab.token2id[token.lower()])
+            ids.append(self.vocab.get_id(token))
         return ids
 
 

@@ -233,8 +233,8 @@ class Model(object):
         """
         pad_id = self.vocab.get_id(self.vocab.pad_token)
         max_bleu_4 = 0
-        for epoch in range(1, epochs + 1):
-            data.train_dev_split(train_percent=0.8)
+        for epoch in range(12, epochs + 12):
+            # data.train_dev_split(train_percent=0.8)
             self.logger.info('Training the model for epoch {}'.format(epoch))
             train_batches = data.gen_mini_batches('train', batch_size, self.vocab)
             train_loss = self._train_epoch(train_batches, dropout_keep_prob)
@@ -285,42 +285,43 @@ class Model(object):
             # padded_p_len = len(batch['passage_token_ids'][0])
             for sample, start_prob, end_prob in zip(batch['raw_data'], start_probs, end_probs):
 
-                best_answer = self.find_best_answer(sample, start_prob, end_prob)
+                best_answer = self.find_answer(sample, start_prob, end_prob)
                 if save_full_info:
                     sample['pred_answers'] = [best_answer]
                     pred_answers.append(sample)
-                # else:
-                #     pred_answers.append({'question_id': sample['question_id'],
-                #                          'question_type': sample['question_type'],
-                #                          'answers': [best_answer],
-                #                          'entity_answers': [[]],
-                #                          'yesno_answers': []})
-                # 原始数据需要加入原始答案
-                if 'answers' in sample:
-                    ref_answers.append({'question_id': sample['question_id'],
-                                        'question_type': sample['question_type'],
-                                        'answers': sample['answers'],
-                                        'entity_answers': [[]],
-                                        'yesno_answers': []})
+                else:
+                    pred_answers.append({'article_id': sample['article_id'],
+                                         'questions_id': sample['questions_id'],
+                                         'question_type': sample['question_type'],
+                                         'answer': best_answer})
 
+                if 'answer' in sample:
+                    ref_answers.append({'article_id': sample['article_id'],
+                                        'questions_id': sample['questions_id'],
+                                        'question_type': sample['question_type'],
+                                        'answer': sample['answer']})
+
+        # 预测答案写入json文件
         if result_dir is not None and result_prefix is not None:
             result_file = os.path.join(result_dir, result_prefix + '.json')
             with open(result_file, 'w') as fout:
-                for pred_answer in pred_answers:
-                    fout.write(json.dumps(pred_answer, ensure_ascii=False) + '\n')
+                json.dump(pred_answers, fout)
+                # for pred_answer in pred_answers:
+                #     fout.write(json.dumps(pred_answer, ensure_ascii=False) + '\n')
 
             self.logger.info('Saving {} results to {}'.format(result_prefix, result_file))
 
         # this average loss is invalid on test set, since we don't have true start_id and end_id
         ave_loss = 1.0 * total_loss / total_num
+
         # compute the bleu and rouge scores if reference answers is provided
         if len(ref_answers) > 0:
             pred_dict, ref_dict = {}, {}
             for pred, ref in zip(pred_answers, ref_answers):
-                question_id = ref['question_id']
-                if len(ref['answers']) > 0:
-                    pred_dict[question_id] = normalize(pred['answers'])
-                    ref_dict[question_id] = normalize(ref['answers'])
+                question_id = ref['questions_id']
+                if len(ref['answer']) > 0:
+                    pred_dict[question_id] = normalize(pred['answer'])
+                    ref_dict[question_id] = normalize(ref['answer'])
             bleu_rouge = compute_bleu_rouge(pred_dict, ref_dict)
         else:
             bleu_rouge = None

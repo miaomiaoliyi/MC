@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import math
 from collections import Counter
 
 import jieba
@@ -9,6 +10,12 @@ from tqdm import tqdm
 
 
 def precision_recall_f1(prediction, ground_truth):
+    """
+    计算precision， recall， f1
+    :param prediction:
+    :param ground_truth:
+    :return:
+    """
     if not isinstance(prediction, list):
         prediction_tokens = prediction.split()
     else:
@@ -40,14 +47,12 @@ def metric_max_over_ground_truths(metric_fn, prediction, ground_truth):
     return score
 
 
-def load_data_set(file_path):
-    with open(file_path, 'r', encoding='utf-8') as f:
-        data_set = json.loads(f.read())
-    return data_set
-
-
-# 找到最相关的段落和在段落中的位置
 def find_fake_answer(sample):
+    """
+    找到最相关的段落和在段落中的位置
+    :param sample:
+    :return:
+    """
     for a_idx, answer_token in enumerate(sample['questions']):
         most_related_para = -1
         most_related_para_len = 999999
@@ -91,13 +96,42 @@ def find_fake_answer(sample):
     return sample
 
 
-def clean_data(sample):
+def find_best_question_match(doc, question, with_score=False):
+    """
+    找到和问题最相关的段落
+    :param doc:
+    :param question:
+    :param with_score:
+    :return:
+    """
+    most_related_para = -1
+    max_related_score = 0
+    most_related_para_len = 0
+
+    for p_idx, para_tokens in enumerate(doc['segmented_article_content']):
+        related_score = metric_max_over_ground_truths(recall, para_tokens, question['segmented_question'])
+
+        if related_score > max_related_score \
+                or (related_score == max_related_score and len(para_tokens) < most_related_para_len):
+            most_related_para = p_idx
+            max_related_score = related_score
+            most_related_para_len = len(para_tokens)
+
+    if most_related_para == -1:
+        most_related_para = 0
+
+    if with_score:
+        return most_related_para, max_related_score
+    return most_related_para
+
+
+def clean_data(sample, train_set=True):
     # 文章内容和标题分段->分词：将标题插入到分段后的首位置
     sample['segmented_article_title'] = \
         list(jieba.cut(''.join(re.split(r'\u3000+|\s+|\t+', sample['article_title'].strip()))))
 
     sample_splited_para = re.split(r'\u3000+|\s+|\t+', sample['article_content'].strip())
-    if len(sample_splited_para) == 1 and len(sample_splited_para[0]) > 200:
+    if len(sample_splited_para) == 1 and len(sample_splited_para[0]) > 400:
         sample_splited_para = re.split(r'\。', sample['article_content'].strip())
     sample_splited_list = []
     for para in sample_splited_para:
@@ -110,44 +144,78 @@ def clean_data(sample):
     for i, question in enumerate(sample['questions']):
         sample['questions'][i]['segmented_question'] = \
             list(jieba.cut(''.join(question['question'].strip().split('\u3000+|\s+|\t+'))))
-        sample['questions'][i]['segmented_answer'] = \
-            list(jieba.cut(''.join(question['answer'].strip().split('\u3000+|\s+|\t+'))))
+        if train_set:
+            sample['questions'][i]['segmented_answer'] = \
+                list(jieba.cut(''.join(question['answer'].strip().split('\u3000+|\s+|\t+'))))
     return sample
 
 
-def run_preprocess(file_path, start=0, end=-1):
+def process_train_data(file_path, start=0, end=-1):
     def save(data, i):
-        with open('../../data/preprocessed_%d.json' % i, 'w', encoding='utf-8') as f:
+        with open('../../data/temp_data/preprocessed_%d.json' % i, 'w', encoding='utf-8') as f:
             json.dump(data, f)
 
     data_set = load_data_set(file_path)
+    data_length = len(data_set)
     data_preprocessed = []
-    for i, sample in enumerate(data_set[start: end + 1]):
-        if i % 100 == 0 and i != 0:
+    for i, sample in enumerate(data_set[start: end]):
+        if (i % 100 == 0 and i != 0) or i == data_length:
             print(i + start)
-            save(data_preprocessed, (i + start) / 100)
+            save(data_preprocessed, math.ceil((i + start) / 100))
             data_preprocessed = []
 
         sample_preprocessed = find_fake_answer(clean_data(sample))
         data_preprocessed.append(sample_preprocessed)
 
 
-def store_prerpocess_data():
+def process_test_data(file_path='../../data/raw_data/question.json', split_word=False):
+    """
+    处理测试数据
+    :param file_path:
+    :param split_word:
+    :return:
+    """
+    data_set = load_data_set(file_path)
+    data_preprocessed = []
+
+    for s_idx, doc in enumerate(data_set):
+        if s_idx/100 == 0:
+            print("processed {},total {}".format(s_idx, len(data_set)))
+        if split_word:
+            doc = clean_data(doc, train_set=False)
+
+        for q_idx, question in enumerate(doc['questions']):
+            most_related_para = find_best_question_match(doc, question)
+            doc['questions'][q_idx]['most_related_para'] = most_related_para
+        data_preprocessed.append(doc)
+
+    save_data(data_preprocessed, '../../data/temp_data/testset.json')
+
+    # return data_preprocessed
+
+
+def store_prerpocess_data(start, end):
     preprocessed_data = []
     for i in range(1, 201):
-        with open('./data/preprocessed_%d.json' % i, 'r', encoding='utf-8') as f:
+        with open('../../data/preprocessed_%d.json' % i, 'r', encoding='utf-8') as f:
             d = json.load(f)
         preprocessed_data.extend(d)
-    with open('./data/preprocessed.json', 'w', encoding='utf-8') as f:
+    with open('../../data/preprocessed.json', 'w', encoding='utf-8') as f:
         json.dump(preprocessed_data, f)
 
 
+def load_data_set(file_path):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        data_set = json.loads(f.read())
+    return data_set
+
+
 def save_data(data, path):
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(data, f)
+    with open(path, 'w') as f:
+        json.dump(data, f, ensure_ascii=False)
 
 
-def qc(data_preprocessed):
+def remove_duplicates(data_preprocessed, store_path='../../data'):
     """
     原始数据集中有重复的文章，根据标题去重
     :return:
@@ -161,18 +229,18 @@ def qc(data_preprocessed):
         else:
             title_set.add(title)
             data_qc.append(sample)
-    save_data(data_qc, os.path.join('F:\\jupyter_file\\MC\\data', 'preprocessed.json'))
+    save_data(data_qc, os.path.join(store_path, 'preprocessed.json'))
 
 
-def train_test_split(data_path, train_percent=0.9):
+def train_test_split(data_path, train_percent=0.9, store_path='../../data'):
     """
     切分训练集，测试集
     :param data_path:
     :param train_percent:
+    :param store_path:
     :return:
     """
-    with open(data_path, 'r', encoding='utf-8') as f:
-        dataset = json.load(f)
+    dataset = load_data_set(data_path)
 
     index = np.arange(len(dataset))
     np.random.shuffle(index)
@@ -186,10 +254,11 @@ def train_test_split(data_path, train_percent=0.9):
     for index in test_index:
         test_set.append(dataset[index])
 
-    save_data(train_set, os.path.join('F:\\jupyter_file\\MC\\data', 'trainset.json'))
-    save_data(test_set, os.path.join('F:\\jupyter_file\\MC\\data', 'testset.json'))
+    save_data(train_set, os.path.join(store_path, 'trainset.json'))
+    save_data(test_set, os.path.join(store_path, 'testset.json'))
 
 
 if __name__ == '__main__':
     # run_preprocess('../../data/question.json', start=19900, end=20000)
-    train_test_split(os.path.join('F:\\jupyter_file\\MC\\data', 'preprocessed_qc.json'))
+    # train_test_split(os.path.join('F:\\jupyter_file\\MC\\data', 'preprocessed_qc.json'))
+    process_test_data(split_word=True)
